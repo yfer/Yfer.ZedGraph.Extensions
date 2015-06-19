@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Runtime.Serialization;
 using System.Security.Permissions;
 using ZedGraph;
@@ -105,6 +106,7 @@ namespace Yfer.ZedGraph.Extension
                 list1.AddRange(list2);
                 var points = list1.ToArray();
 
+                g.SmoothingMode = SmoothingMode.AntiAlias;
                 g.FillPolygon(Fill.Brush, points);
                 
                 g.DrawPolygon(pen, points);

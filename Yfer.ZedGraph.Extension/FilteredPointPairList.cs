@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Linq;
 using ZedGraph;
@@ -90,35 +91,21 @@ namespace Yfer.ZedGraph.Extension
             for (var i = 0; i < Count; i++)
             {
                 //last interval may be smaller due to ceiling, minus one as first element is already token
-                var length = (i < Count - 1 ? coef : _maxxBoundIndex - i*coef) - 1;
-                
-                var arr = new ArraySegment<T>(_y, i*coef, length);
-                var max = arr.Max();
-                var min = arr.Min();
-                _points[i] = new PointPair((_minxBoundIndex + i*coef)/_xfreq, Convert.ToDouble(max)/_yfreq,
-                    Convert.ToDouble(min)/_yfreq);
+                var length = (i < Count - 1 ? coef : _maxxBoundIndex - i * coef) - 1;
+
+                var segment = new ArraySegment<T>(_y, i * coef, length);
+                _points[i] = new PointPair(
+                    (_minxBoundIndex + i * coef) / _xfreq,
+                    Convert.ToDouble(segment.Max()) / _yfreq,
+                    Convert.ToDouble(segment.Min()) / _yfreq);
             }
         }
 
+        
         /// <summary>
         /// Returns the number of points according to the current state of the filter.
         /// </summary>
-        public int Count
-        {
-            get
-            {
-                var arraySize = 0;
-
-                if (_minxBoundIndex >= 0 && _maxxBoundIndex >= 0)
-                {
-                    arraySize = _maxxBoundIndex - _minxBoundIndex;
-                    if (arraySize > _maxPts)
-                        arraySize = MaxPts;
-                }
-                    
-                return arraySize;
-            }
-        }
+        public int Count { get; private set; }
 
         /// <summary>
         /// Gets the desired number of filtered points to output.  You can set this value by
@@ -192,6 +179,15 @@ namespace Yfer.ZedGraph.Extension
 
             _minxBoundIndex = first;
             _maxxBoundIndex = last;
+
+            //compute point count to display
+            Count = 0;
+            if (_minxBoundIndex >= 0 && _maxxBoundIndex >= 0)
+            {
+                Count = _maxxBoundIndex - _minxBoundIndex;
+                if (Count > _maxPts)
+                    Count = MaxPts;
+            }
 
             FilterPoints();
         }
