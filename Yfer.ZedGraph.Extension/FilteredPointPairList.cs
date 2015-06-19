@@ -1,10 +1,13 @@
 ﻿using System;
+using System.Diagnostics;
+using System.Linq;
 using ZedGraph;
 
 namespace Yfer.ZedGraph.Extension
 {
     [Serializable]
-    public class FilteredPointPairList : IPointList
+    public class FilteredPointPairList<T> : IPointList
+        where T : struct, IComparable, IComparable<T>, IConvertible, IEquatable<T>, IFormattable //Make sure that T is only numeric Types
     {
 
         #region Fields
@@ -12,15 +15,11 @@ namespace Yfer.ZedGraph.Extension
         /// <summary>
         /// Instance of an array of x values
         /// </summary>
-        private double[] _x;
-        /// <summary>
-        /// Instance of an array of x values
-        /// </summary>
-        private double[] _y;
-        /// <summary>
-        /// Instance of an array of z values
-        /// </summary>
-        private double[] _pointBase;
+        private readonly T[] _y;
+
+        private readonly double _xfreq;
+        private readonly double _yfreq;
+
         /*
         /// <summary>
         /// This is the minimum value of the range of interest (typically the minimum of
@@ -33,19 +32,21 @@ namespace Yfer.ZedGraph.Extension
         /// </summary>
         //private double _xMaxBound = double.MaxValue;
         */
+
         /// <summary>
         /// This is the maximum number of points that you want to see in the filtered dataset
         /// </summary>
-        private int _maxPts = -1;
+        private int _maxPts = 2000;
 
         /// <summary>
         /// The index of the xMinBound above
         /// </summary>
-        private int _minBoundIndex = -1;
+        private int _minxBoundIndex = -1;
+
         /// <summary>
         /// The index of the xMaxBound above
         /// </summary>
-        private int _maxBoundIndex = -1;
+        private int _maxxBoundIndex = -1;
 
         //		/// <summary>
         //		/// Switch used to indicate if the next filtered point should be the high point or the
@@ -75,98 +76,27 @@ namespace Yfer.ZedGraph.Extension
         /// <value>A <see cref="PointPair"/> object reference.</value>
         public PointPair this[int index]
         {
-            get
+            get { return _points[index]; }          
+        }
+
+        private PointPair[] _points;
+
+        private void FilterPoints()
+        {
+            _points = new PointPair[Count];
+            
+            //points in interval
+            var coef = (int) Math.Ceiling(((double) _maxxBoundIndex - _minxBoundIndex)/Count);
+            for (var i = 0; i < Count; i++)
             {
- 
-                    double coef = 0;
-                    // See if the array should be bounded
-                    if (_minBoundIndex >= 0 && _maxBoundIndex >= 0 && _maxPts >= 0)
-                    {
-                        // get number of points in bounded range
-                        var nPts = _maxBoundIndex - _minBoundIndex + 1;
-                        coef = (double)nPts / (double)_maxPts;
-
-
-                        if (nPts > _maxPts)
-                        {
-                            // if we're skipping points, then calculate the new index
-                            var u = 0;
-                            if (index == 0) u--;
-                            if (index == _maxPts-1) 
-                                u++;
-                            index = _minBoundIndex + (int)((double)coef * (double)index)+u;
-
-                        }
-                        else
-                        {
-                            // otherwise, index is just offset by the start of the bounded range
-                            index += _minBoundIndex;
-                        }
-                    }
-
-                    double xVal, yVal, pointBase;
-                    
-                    if (index >= 0 && index < _x.Length)
-                        xVal = _x[index];
-                    else
-                        xVal = PointPair.Missing;
-
-                    if (index >= 0 && index < _y.Length)
-                    {
-                        var max = _y[index];
-                        for (var i = 1; i < coef - 2; i++)
-                        {
-                            if (max < _y[index + i])
-                                max = _y[index + i];
-                        }
-                        yVal = max;
-                    }
-                    else
-                        yVal = PointPair.Missing;
-
-                    if (index >= 0 && index < _pointBase.Length)
-                    {
-                        var min = _pointBase[index];
-                        for (var i = 1; i < coef - 2; i++)
-                        {
-                            if (min > _pointBase[index + i])
-                                min = _pointBase[index + i];
-                        }
-                        pointBase = min;
-                    }
-                    else
-                        pointBase = PointPair.Missing;
-                return new PointPair(xVal, yVal, pointBase);
-            }
-
-            set
-            {
-                // See if the array should be bounded
-                if (_minBoundIndex >= 0 && _maxBoundIndex >= 0 && _maxPts >= 0)
-                {
-                    // get number of points in bounded range
-                    var nPts = _maxBoundIndex - _minBoundIndex + 1;
-
-                    if (nPts > _maxPts)
-                    {
-                        // if we're skipping points, then calculate the new index
-                        index = _minBoundIndex + (int)((double)index * (double)nPts / (double)_maxPts);
-                    }
-                    else
-                    {
-                        // otherwise, index is just offset by the start of the bounded range
-                        index += _minBoundIndex;
-                    }
-                }
-
-                if (index >= 0 && index < _x.Length)
-                    _x[index] = value.X;
-
-                if (index >= 0 && index < _y.Length)
-                    _y[index] = value.Y;
-
-                if (index >= 0 && index < _pointBase.Length)
-                    _pointBase[index] = value.Z;
+                //last interval may be smaller due to ceiling, minus one as first element is already token
+                var length = (i < Count - 1 ? coef : _maxxBoundIndex - i*coef) - 1;
+                
+                var arr = new ArraySegment<T>(_y, i*coef, length);
+                var max = arr.Max();
+                var min = arr.Min();
+                _points[i] = new PointPair((_minxBoundIndex + i*coef)/_xfreq, Convert.ToDouble(max)/_yfreq,
+                    Convert.ToDouble(min)/_yfreq);
             }
         }
 
@@ -177,23 +107,15 @@ namespace Yfer.ZedGraph.Extension
         {
             get
             {
-                var arraySize = _x.Length;
+                var arraySize = 0;
 
-                // Is the filter active?
-                if (_minBoundIndex >= 0 && _maxBoundIndex >= 0 && _maxPts > 0)
+                if (_minxBoundIndex >= 0 && _maxxBoundIndex >= 0)
                 {
-                    // get the number of points within the filter bounds
-                    var boundSize = _maxBoundIndex - _minBoundIndex + 1;
-
-                    // limit the point count to the filter bounds
-                    if (boundSize < arraySize)
-                        arraySize = boundSize;
-
-                    // limit the point count to the declared max points
+                    arraySize = _maxxBoundIndex - _minxBoundIndex;
                     if (arraySize > _maxPts)
-                        arraySize = _maxPts;
+                        arraySize = MaxPts;
                 }
-
+                    
                 return arraySize;
             }
         }
@@ -207,43 +129,30 @@ namespace Yfer.ZedGraph.Extension
             get { return _maxPts; }
         }
 
-
         #endregion
 
         #region Constructors
-
+        
         /// <summary>
         /// Constructor to initialize the PointPairList from two arrays of
         /// type double.
         /// </summary>
-        public FilteredPointPairList(double[] x, double[] y, double[] pointBase)
+        public FilteredPointPairList(T[] y, double xfreq, double yfreq)
         {
-            _x = x;
             _y = y;
-            _pointBase = pointBase;
+            _xfreq = xfreq;
+            _yfreq = yfreq;
         }
 
-        /// <summary>
-        /// Constructor to initialize the PointPairList from two arrays of
-        /// type double.
-        /// </summary>
-        public FilteredPointPairList(double[] x, double[] y)
-        {
-            _x = x;
-            _y = y;
-            _pointBase = _y;
-        }
         /// <summary>
         /// The Copy Constructor
         /// </summary>
         /// <param name="rhs">The FilteredPointList from which to copy</param>
-        public FilteredPointPairList(FilteredPointPairList rhs)
+        public FilteredPointPairList(FilteredPointPairList<T> rhs)
         {
-            _x = (double[])rhs._x.Clone();
-            _y = (double[])rhs._y.Clone();
-            _pointBase = (double[])rhs._pointBase.Clone();
-            _minBoundIndex = rhs._minBoundIndex;
-            _maxBoundIndex = rhs._maxBoundIndex;
+            _y = (T[]) rhs._y.Clone();
+            _minxBoundIndex = rhs._minxBoundIndex;
+            _maxxBoundIndex = rhs._maxxBoundIndex;
             _maxPts = rhs._maxPts;
 
         }
@@ -252,9 +161,9 @@ namespace Yfer.ZedGraph.Extension
         /// Deep-copy clone routine
         /// </summary>
         /// <returns>A new, independent copy of the FilteredPointList</returns>
-        virtual public object Clone()
+        public virtual object Clone()
         {
-            return new FilteredPointPairList(this);
+            return new FilteredPointPairList<T>(this);
         }
 
 
@@ -264,68 +173,28 @@ namespace Yfer.ZedGraph.Extension
 
         /// <summary>
         /// Set the data bounds to the specified minimum, maximum, and point count.  Use values of
-        /// min=double.MinValue and max=double.MaxValue to get the full range of data.  Use maxPts=-1
-        /// to not limit the number of points.  Call this method anytime the zoom range is changed.
+        /// min=double.MinValue and max=double.MaxValue to get the full range of data. Call this method anytime the zoom range is changed.
         /// </summary>
-        /// <param name="min">The lower bound for the X data of interest</param>
-        /// <param name="max">The upper bound for the X data of interest</param>
-        /// <param name="maxPts">The maximum number of points allowed to be
-        /// output by the filter</param>
-        // New code mods by ingineer
-        public void SetBounds(double min, double max, int maxPts)
+        /// <param name="minx">The lower bound for the X data of interest</param>
+        /// <param name="maxx">The upper bound for the X data of interest</param>
+        /// <param name="maxPts">The maximum number of points allowed to be output by the filter</param>
+        public void SetBounds(double minx, double maxx, int maxPts)
         {
             _maxPts = maxPts;
 
             // find the index of the start and end of the bounded range
-            var first = Array.BinarySearch(_x, min);
-            var last = Array.BinarySearch(_x, max);
+            var first = (int) Math.Floor(_xfreq*minx);
+            var last = (int) Math.Ceiling(_xfreq*maxx);
+            if (first < 0) first = 0;
+            if (first > _y.Length) first = -1;
+            if (last > _y.Length) last = _y.Length;
+            if (last < 0) last = -1;
 
-            // Make sure the bounded indices are legitimate
-            // if BinarySearch() doesn't find the value, it returns the bitwise
-            // complement of the index of the 1st element larger than the sought value
+            _minxBoundIndex = first;
+            _maxxBoundIndex = last;
 
-            if (first < 0)
-            {
-                if (first == -1)
-                    first = 0;
-                else
-                    first = ~(first + 1);
-            }
-
-            if (last < 0)
-                last = ~last;
-
-            _minBoundIndex = first;
-            _maxBoundIndex = last;
+            FilterPoints();
         }
-
-        // The old version, as of 21-Oct-2007
-        //public void SetBounds2(double min, double max, int maxPts)
-        //{
-        //    _maxPts = maxPts;
-
-        //    // assume data points are equally spaced, and calculate the X step size between
-        //    // each data point
-        //    double step = (_x[_x.Length - 1] - _x[0]) / (double)_x.Length;
-
-        //    if (min < _x[0])
-        //        min = _x[0];
-        //    if (max > _x[_x.Length - 1])
-        //        max = _x[_x.Length - 1];
-
-        //    // calculate the index of the start of the bounded range
-        //    int first = (int)((min - _x[0]) / step);
-
-        //    // calculate the index of the last point of the bounded range
-        //    int last = (int)((max - min) / step + first);
-
-        //    // Make sure the bounded indices are legitimate
-        //    first = Math.Max(Math.Min(first, _x.Length), 0);
-        //    last = Math.Max(Math.Min(last, _x.Length), 0);
-
-        //    _minBoundIndex = first;
-        //    _maxBoundIndex = last;
-        //}
 
         #endregion
 
