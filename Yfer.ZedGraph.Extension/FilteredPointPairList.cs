@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Linq;
 using ZedGraph;
 
@@ -21,19 +19,6 @@ namespace Yfer.ZedGraph.Extension
         private readonly double _xfreq;
         private readonly double _yfreq;
 
-        /*
-        /// <summary>
-        /// This is the minimum value of the range of interest (typically the minimum of
-        /// the range that you have zoomed into)
-        /// </summary>
-        //private double _xMinBound = double.MinValue;
-        /// <summary>
-        /// This is the maximum value of the range of interest (typically the maximum of
-        /// the range that you have zoomed into)
-        /// </summary>
-        //private double _xMaxBound = double.MaxValue;
-        */
-
         /// <summary>
         /// This is the maximum number of points that you want to see in the filtered dataset
         /// </summary>
@@ -48,17 +33,6 @@ namespace Yfer.ZedGraph.Extension
         /// The index of the xMaxBound above
         /// </summary>
         private int _maxxBoundIndex = -1;
-
-        //		/// <summary>
-        //		/// Switch used to indicate if the next filtered point should be the high point or the
-        //		/// low point within the current range.
-        //		/// </summary>
-        //		private bool _upDown = false;
-
-        //		/// <summary>
-        //		/// Determines if the high/low logic will be used.
-        //		/// </summary>
-        //		private bool _isApplyHighLowLogic = true;
 
         #endregion
 
