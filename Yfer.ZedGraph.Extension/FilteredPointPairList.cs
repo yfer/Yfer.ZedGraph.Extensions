@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Linq;
 using ZedGraph;
 
 namespace Yfer.ZedGraph.Extension
@@ -68,10 +67,20 @@ namespace Yfer.ZedGraph.Extension
                 var length = (i < Count - 1 ? coef : _maxxBoundIndex - i * coef) - 1;
 
                 var segment = new ArraySegment<T>(_y, i * coef, length);
+                var arr = _y;
+                var min = arr[segment.Offset];
+                var max = arr[segment.Offset];
+                for (var j = segment.Offset; j < segment.Count; j++)
+                {
+                    if (min.CompareTo(arr[j]) > 0)
+                        min = arr[j];
+                    if (max.CompareTo(arr[j]) < 0)
+                        max = arr[j];
+                }
                 _points[i] = new PointPair(
                     (_minxBoundIndex + i * coef) / _xfreq,
-                    Convert.ToDouble(segment.Max()) / _yfreq,
-                    Convert.ToDouble(segment.Min()) / _yfreq);
+                    Convert.ToDouble(max) / _yfreq,
+                    Convert.ToDouble(min) / _yfreq);
             }
         }
 
