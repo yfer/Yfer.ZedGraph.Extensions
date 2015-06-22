@@ -60,22 +60,23 @@ namespace Yfer.ZedGraph.Extension
             _points = new PointPair[Count];
             
             //points in interval
-            var coef = (int) Math.Ceiling(((double) _maxxBoundIndex - _minxBoundIndex)/Count);
+            var coef = ((double) _maxxBoundIndex - _minxBoundIndex)/Count;
+            var start = 0;
             for (var i = 0; i < Count; i++)
-            {
-                //last interval may be smaller due to ceiling, minus one as first element is already token
-                var length = (i < Count - 1 ? coef : _maxxBoundIndex - i * coef) - 1;
+            {   
+                var length = (int)Math.Round(coef*(i+1)) - start;
 
-                var segment = new ArraySegment<T>(_y, i * coef, length);
-                var arr = _y;
-                var min = arr[segment.Offset];
-                var max = arr[segment.Offset];
+                var segment = new ArraySegment<T>(_y, _minxBoundIndex + start, length);
+                start += length;
+
+                var min = _y[segment.Offset];
+                var max = _y[segment.Offset];
                 for (var j = segment.Offset; j < segment.Count; j++)
                 {
-                    if (min.CompareTo(arr[j]) > 0)
-                        min = arr[j];
-                    if (max.CompareTo(arr[j]) < 0)
-                        max = arr[j];
+                    if (min.CompareTo(_y[j]) > 0)
+                        min = _y[j];
+                    if (max.CompareTo(_y[j]) < 0)
+                        max = _y[j];
                 }
                 _points[i] = new PointPair(
                     (_minxBoundIndex + i * coef) / _xfreq,
